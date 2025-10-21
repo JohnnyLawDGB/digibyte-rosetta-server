@@ -12,6 +12,7 @@ const DEFAULT_RPC_PROTO = 'http';
 const DEFAULT_LISTENING_PORT = 8080;
 const DEFAULT_DATA_PATH = './data';
 const DEFAULT_DGB_NETWORK = 'livenet';
+const DEFAULT_DGB_VERSION = 'v8.22.2';
 
 /**
  * syncerSecret is used by the Indexer in order to request blocks from
@@ -29,7 +30,7 @@ const syncerSecret = process.env.SYNCER_SECRET ||
 const config = {
   version: '1.0.0',
   rosettaVersion: RosettaSDK.Version || DEFAULT_ROSETTA_VERSION,
-  digibyteVersion: process.env.DGB_VERSION,
+  digibyteVersion: process.env.DGB_VERSION || DEFAULT_DGB_VERSION,
   port: process.env.PORT || DEFAULT_LISTENING_PORT,
   host: process.env.HOST || DEFAULT_LISTENING_HOST,
   offline: !!parseInt(process.env.OFFLINE_MODE),

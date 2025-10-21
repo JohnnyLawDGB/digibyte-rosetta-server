@@ -8,6 +8,8 @@ DigiByte Rosetta Server Version: 1.0.0
 
 Coinbase Rosetta Version: 1.4.1
 
+DigiByte Core Version (tested): v8.22.2
+
 ### About
 
 DigiByte Rosetta Server is a Dockerized implementation of the [Coinbase Rosetta Specification](https://www.rosetta-api.org/) written in the ubiquitous NodeJS framework to make it easier for the developer community to integrate with and build upon the DigiByte Blockchain.  To learn more about the specification and how you can integrate with it, view the full specifcation documentation [here](https://www.rosetta-api.org/docs/Reference.html).
@@ -28,7 +30,9 @@ git clone https://github.com/DigiByte-Core/digibyte-rosetta-server.git
 
 #### 2. Build the docker image
 
-When building the docker image, a variety of build arguments are available.  Please review the available args in the [Dockerfile](./Dockerfile).  
+When building the docker image, a variety of build arguments are available.  Please review the available args in the [Dockerfile](./Dockerfile).
+
+By default the container builds DigiByte Core `v8.22.2`. You can pin a different release by passing `--build-arg dgb_version=<tag>` to the `docker build` command.
 
 ##### Build for DigiByte regtest
 
@@ -41,7 +45,7 @@ docker build -t digibyte/rosetta:latest --build-arg use_regtest=1 --build-arg re
 
 ##### Build for DigiByte testnet
 
-> NOTE: At this time, testnet is intermitently available and will be resolved with the release of 8.22
+> NOTE: DigiByte Core 8.22 and newer include the fixes required for stable testnet operation.
 
 ```bash
 # Build the docker image for testnet (may take a while).
@@ -75,7 +79,7 @@ docker run -p 18444:18444 -p 8080:8080 digibyte/rosetta:latest
 
 ##### Start using DigiByte testnet
 
-> NOTE: At this time, testnet is intermitently available and will be resolved with the release of 8.22
+> NOTE: DigiByte Core 8.22 and newer include the fixes required for stable testnet operation.
 
 ```bash
 # This command will start the docker container for testnet.
@@ -96,6 +100,29 @@ docker run -p 12024:12024 -p 8080:8080 digibyte/rosetta:latest
 ```
 
 > NOTE: On linux operating systems, `sudo` may be required for any `docker run` commands.
+
+### Running against an existing DigiByte Core node
+
+If you are already running a DigiByte Core 8.22 node (or newer) you can launch the Rosetta server without starting the bundled DigiByte daemon.
+
+1. Install the JavaScript dependencies: `npm install`
+2. Ensure your DigiByte node exposes RPC access to the Rosetta host (for example by setting `rpcallowip` or running the Rosetta server on the same machine).
+3. Export the configuration that points the Rosetta server at your node. A minimal set of environment variables looks like this:
+
+   ```bash
+   export RPC_HOST=127.0.0.1
+   export RPC_PORT=14022
+   export RPC_USER=<your_rpc_username>
+   export RPC_PASS=<your_rpc_password>
+   export DGB_NETWORK=livenet
+   export DGB_VERSION=v8.22.2
+   # Optional: override if you want the UTXO index somewhere else
+   export DATA_PATH="$(pwd)/data"
+   ```
+
+4. Start the Rosetta process: `npm start`
+
+On first launch the Rosetta server will build its local UTXO index inside `DATA_PATH`. Keep this directory persistent between restarts so the index does not need to be rebuilt.
 
 ### Test
 

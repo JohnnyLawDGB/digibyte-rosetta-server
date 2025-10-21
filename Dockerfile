@@ -2,7 +2,7 @@ FROM ubuntu:focal
 USER root
 WORKDIR /data
 
-ARG dgb_version=v7.17.3
+ARG dgb_version=v8.22.2
 ARG arch=x86_64
 
 # You can confirm your timezone by setting the TZ database name field from:
@@ -99,7 +99,7 @@ rpcuser=${rpc_username}\n\
 rpcpassword=${rpc_password}\n\
 txindex=0\n\
 # Uncomment below if you need Dandelion disabled for any reason but it is left on by default intentionally\n\
-disabledandelion=1\n\
+# dandelion=0\n\
 addresstype=bech32\n\
 testnet=${use_testnet}\n\
 rpcworkqueue=100\n\
