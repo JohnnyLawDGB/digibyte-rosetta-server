@@ -728,17 +728,18 @@ class Indexer {
   }
 
   serializeUtxoValue(sats, address, createdOnBlock, scriptPubKey, spentInTx, spentOnBlock) {
-    const script = typeof scriptPubKey === 'object' ? scriptPubKey.hex : scriptPubKey
-    const encoded = UtxoValueSchema.encode({
+    const script = typeof scriptPubKey === 'object' ? scriptPubKey.hex : scriptPubKey;
+    const value = {
       sats,
-      address,
       createdOnBlock,
-      scriptPubKey: script,
-      spentOnBlock,
-      spentInTx,
-    });
+    };
 
-    return encoded;
+    if (address != null) value.address = address;
+    if (script != null) value.scriptPubKey = script;
+    if (spentOnBlock != null) value.spentOnBlock = spentOnBlock;
+    if (spentInTx != null) value.spentInTx = spentInTx;
+
+    return UtxoValueSchema.encode(value);
   }
 
   async utxoExistsBySymbol(txSymbol, vout) {
@@ -929,25 +930,25 @@ class Indexer {
     // Get binary encodings
     const kvPairs = tx.vout.map((out) => {
       const sats = convertToSatoshis(out.value);
+      const addressSymbol = out.address && out.address.value != null
+        ? out.address.value
+        : undefined;
 
       return {
         key: this.serializeUtxoKey(txSymbol, out.n),
-        value: this.serializeUtxoValue(sats, out.address.value, blockSymbol, out.scriptPubKey),
+        value: this.serializeUtxoValue(sats, addressSymbol, blockSymbol, out.scriptPubKey),
         // Store original data
         txid: tx.txid,
         n: out.n,
         sats,
         output: out,
+        addressSymbol,
       };
     });
 
     // Add each utxo to the batch queue
     for (const pair of kvPairs) {
       const identifier = `${pair.txid}:${pair.n}`;
-
-      if (!pair.output.address || !pair.output.address.key) {
-        continue;
-      }
 
       ops.push({
         type: 'put',
@@ -965,7 +966,7 @@ class Indexer {
         block: blockSymbol,
         n: pair.n,
         sats: pair.sats,
-				address: pair.output.address.value,
+        address: pair.addressSymbol,
       };
 
       await this.batchUtxoAdditionToAddress(tx, txSymbol, pair.output);
