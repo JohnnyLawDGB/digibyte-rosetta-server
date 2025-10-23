@@ -47,6 +47,55 @@ const Server = new RosettaSDK.Server({
   URL_PORT: Config.port,
 });
 
+/*
+ * Rosetta CLI 1.4.1 sends the syncer secret inside a "headers"
+ * property on the request body (in addition to the HTTP header).
+ *
+ * express-openapi-validator performs schema validation before the
+ * request reaches our handlers. If the request body does not contain
+ * the optional "headers" object, the validator rejects the call with
+ * "request should have required property 'headers'".
+ *
+ * When the server makes internal fetcher calls we always include the
+ * HTTP header defined in Config.syncer.defaultHeaders, but external
+ * clients (like curl) were missing the body property.  We mirror the
+ * trusted HTTP header into req.body.headers so validation succeeds for
+ * both the syncer and manual requests.
+ */
+Server.expressServer.app.use((req, res, next) => {
+  if (!req || req.method !== 'POST') return next();
+
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return next();
+
+  // Only add the property when the header is present to avoid masking
+  // genuine validation issues on unrelated requests.
+  const syncerSecretHeader = req.headers && req.headers['syncer-secret'];
+  if (!syncerSecretHeader) return next();
+
+  if (!Object.prototype.hasOwnProperty.call(req, 'headers')) {
+    // express-openapi-validator clones the request using Object.assign, which
+    // only copies own enumerable properties. Ensure the headers are directly
+    // attached so validation can see them.
+    Object.defineProperty(req, 'headers', {
+      value: { ...req.headers },
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  if (!body.headers || typeof body.headers !== 'object') {
+    body.headers = {};
+  }
+
+  if (!body.headers['syncer-secret']) {
+    body.headers['syncer-secret'] = syncerSecretHeader;
+  }
+
+  return next();
+});
+
 const asserter = RosettaSDK.Asserter.NewServer(
   Config.serverConfig.operationTypesList,
   Config.serverConfig.historicalBalanceLookup,
