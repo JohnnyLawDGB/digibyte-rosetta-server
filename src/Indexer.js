@@ -3,6 +3,7 @@ const level = require('level');
 const JSBinType = require('js-binary').Type;
 
 const syncBlockCache = require('./syncBlockCache');
+const rpc = require('./rpc');
 
 const BLOCK_BATCH_SIZE = 200;
 const TX_BATCH_SIZE = 20000;
@@ -753,7 +754,7 @@ class Indexer {
     const key = this.serializeUtxoKey(txSymbol, vout);
 
     // 3. Step: Fetch from database using generated key
-    const value = await this.db.utxo.get(key)
+    let value = await this.db.utxo.get(key)
       .catch(() => null);
 
     if (value == null) {
@@ -783,7 +784,93 @@ class Indexer {
 
     // console.log(`Looking into utxo db for ${txid}:${vout}...`);
     const txSymbol = await this.getTxSymbol(txid);
-    return await this.utxoExistsBySymbol(txSymbol, vout);
+    let pair = await this.utxoExistsBySymbol(txSymbol, vout);
+
+    if (pair == null && txSymbol != null) {
+      pair = await this.recoverMissingUtxo(txid, vout, txSymbol);
+    }
+
+    return pair;
+  }
+
+  async recoverMissingUtxo(txid, vout, txSymbol) {
+    try {
+      console.warn(`Attempting to recover missing utxo ${txid}:${vout}`);
+
+      const tx = await rpc.getrawtransaction({ txid, verbose: true })
+        .catch((error) => {
+          console.error(`Failed to fetch transaction ${txid} from RPC`, error);
+          return null;
+        });
+
+      if (!tx || !Array.isArray(tx.vout)) {
+        console.error(`Unable to recover utxo ${txid}:${vout}. Transaction details unavailable.`);
+        return null;
+      }
+
+      const output = tx.vout.find((out) => out && out.n === vout);
+      if (!output) {
+        console.error(`Unable to recover utxo ${txid}:${vout}. Output not found in transaction.`);
+        return null;
+      }
+
+      let blockSymbol = null;
+      const blockHash = tx.blockhash;
+
+      if (blockHash) {
+        blockSymbol = await this.getBlockSymbol(blockHash);
+
+        if (blockSymbol == null) {
+          const block = await rpc.getblock({ blockhash: blockHash, verbosity: 1 })
+            .catch((error) => {
+              console.error(`Failed to fetch block ${blockHash} while recovering utxo ${txid}:${vout}`, error);
+              return null;
+            });
+
+          if (block && typeof block.height === 'number') {
+            blockSymbol = block.height;
+            await this.batchBlockSymbol(blockHash, blockSymbol);
+          }
+        }
+      }
+
+      if (blockSymbol == null && typeof tx.blockheight === 'number') {
+        blockSymbol = tx.blockheight;
+      }
+
+      if (blockSymbol == null) {
+        blockSymbol = this.lastBlockSymbol;
+      }
+
+      const address = await this.getAddressSymbol(output);
+      const addressSymbol = address && address.value != null ? address.value : undefined;
+
+      const sats = convertToSatoshis(output.value);
+      const scriptPubKey = output.scriptPubKey;
+
+      const key = this.serializeUtxoKey(txSymbol, vout);
+      const value = this.serializeUtxoValue(sats, addressSymbol, blockSymbol, scriptPubKey);
+
+      const identifier = `${txid}:${vout}`;
+      this.lastSeenUtxos[identifier] = {
+        txSymbol,
+        txid,
+        block: blockSymbol,
+        n: vout,
+        sats,
+        address: addressSymbol,
+        scriptPubKey,
+      };
+
+      return {
+        key,
+        value,
+        symbol: txSymbol,
+      };
+    } catch (error) {
+      console.error(`Unexpected error while recovering utxo ${txid}:${vout}`, error);
+      return null;
+    }
   }
 
   async invalidateUtxo(txid, vout, sats, addressSymbol, blockSymbol, scriptPubKey, spentInTx, spentOnBlock, serializedKey = null) {
