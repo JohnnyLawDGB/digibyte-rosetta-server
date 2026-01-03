@@ -12,12 +12,12 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "rosetta-node-sdk": "git+https://github.com/DigiByte-Core/digibyte-rosetta-nodeapi.git#v1.4.1",
     "bitcoinjs-lib": "^6.0.1",
     "bluebird": "^3.7.2",
     "ecpair": "^2.0.1",
     "js-binary": "^1.2.0",
     "level": "^6.0.1",
+    "rosetta-node-sdk": "git+https://github.com/DigiByte-Core/digibyte-rosetta-nodeapi.git#v1.4.1",
     "rpc-bitcoin": "^2.0.0",
     "tiny-secp256k1": "^2.2.0"
   },
@@ -30,7 +30,7 @@
   "author": "yoshijaeger",
   "license": "MIT",
   "devDependencies": {
-    "axios": "^0.20.0",
+    "axios": "^1.13.2",
     "chai": "^4.2.0",
     "eslint": "^7.7.0",
     "eslint-config-airbnb": "^18.2.0",
