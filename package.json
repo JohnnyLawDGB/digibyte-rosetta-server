@@ -13,12 +13,10 @@
   },
   "dependencies": {
     "bitcoinjs-lib": "^6.0.1",
-    "bluebird": "^3.7.2",
     "ecpair": "^2.0.1",
     "js-binary": "^1.2.0",
     "level": "^6.0.1",
     "rosetta-node-sdk": "git+https://github.com/DigiByte-Core/digibyte-rosetta-nodeapi.git#v1.4.1",
-    "rpc-bitcoin": "^2.0.0",
     "tiny-secp256k1": "^2.2.0"
   },
   "keywords": [
