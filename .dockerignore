@@ -1,5 +1,56 @@
-**/Dockerfile
+# Docker files
+**/Dockerfile*
 **/.dockerignore
-**/docker-compose.yaml
-**.log
+**/docker-compose*.yaml
+**/docker-compose*.yml
+
+# Node.js
 **/node_modules
+**/npm-debug.log
+**/yarn-error.log
+**.log
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+**/README*.md
+**/docs
+**.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+**/.travis.yml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+**/dist
+**/build
+**/coverage
+
+# Environment and data
+.env*
+**/data
+**/*.bak
+**/combined.log
+**/error.log
+**/rosetta-config.json
+**/rosetta-data-check.json
+**/*.pre-update
+
+# Test files (we copy them explicitly when needed)
+# Commented out since tests are copied in Dockerfile
+# **/test

@@ -1,154 +1,188 @@
-FROM ubuntu:focal
-USER root
-WORKDIR /data
+# ============================================================================
+# Stage 1: Build DigiByte Core
+# ============================================================================
+FROM ubuntu:focal AS digibyte-builder
 
 ARG dgb_version=v8.22.2
 ARG arch=x86_64
-
-# You can confirm your timezone by setting the TZ database name field from:
-# https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-ARG local_timezone=Europe/Berlin
-
-# Update apt cache and set tzdata to non-interactive or it will fail later.
-# Also install essential dependencies for the build project.
-RUN DEBIAN_FRONTEND="noninteractive" apt-get update \
-  && apt-get -y install tzdata \
-  && ln -fs /usr/share/zoneinfo/${local_timezone} /etc/localtime \
-  && dpkg-reconfigure --frontend noninteractive tzdata \
-  && apt-get install -y wget git build-essential libtool autotools-dev automake \
-  && apt-get install -y curl  \
-  && curl -sL https://deb.nodesource.com/setup_14.x | bash -  \
-  && apt-get install -y nodejs \
-  pkg-config libssl-dev libevent-dev bsdmainutils python3 libboost-system-dev \
-  libboost-filesystem-dev libboost-chrono-dev libboost-test-dev libboost-thread-dev \
-  libdb-dev libdb++-dev && \
-  apt-get clean
-
-# Clone the Core wallet source from GitHub and checkout the version.
-RUN git clone https://github.com/DigiByte-Core/digibyte/ --branch ${dgb_version} --single-branch
-
-# Use multiple processors to build DigiByte from source.
-# Warning: It will try to utilize all your systems cores, which speeds up the build process,
-# but consumes a lot of memory which could lead to OOM-Errors during the build process.
-# Recommendation: Enable this on machines that have more than 16GB RAM.
 ARG parallize_build=0
 
-# Determine how many cores the build process will use.
-RUN export CORES="" && [ $parallize_build -gt 1 ] && export CORES="-j $(nproc)"; \
-  echo "Using $parallize_build core(s) for build process."
+WORKDIR /build
 
-# Prepare the build process
-ARG rootdatadir=/data
-RUN cd ${rootdatadir}/digibyte && ./autogen.sh \
-  && ./configure --without-gui --with-incompatible-bdb
+# Install build dependencies
+RUN DEBIAN_FRONTEND="noninteractive" apt-get update \
+  && apt-get install -y --no-install-recommends \
+    wget \
+    git \
+    build-essential \
+    libtool \
+    autotools-dev \
+    automake \
+    pkg-config \
+    libssl-dev \
+    libevent-dev \
+    bsdmainutils \
+    python3 \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    libboost-chrono-dev \
+    libboost-test-dev \
+    libboost-thread-dev \
+    libdb-dev \
+    libdb++-dev \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
-# Start the build process
-RUN cd ${rootdatadir}/digibyte \
-  && make $CORES \
+# Clone and build DigiByte Core
+RUN git clone https://github.com/DigiByte-Core/digibyte/ --branch ${dgb_version} --single-branch \
+  && cd digibyte \
+  && ./autogen.sh \
+  && ./configure --without-gui --with-incompatible-bdb \
+  && make $([ "$parallize_build" -gt 1 ] && echo "-j $(nproc)" || echo "") \
   && make install
 
-# Delete source
-#RUN rm -rf ${rootdatadir}/digibyte
+# ============================================================================
+# Stage 2: Build Node.js dependencies
+# ============================================================================
+FROM ubuntu:focal AS node-builder
 
-RUN mkdir -vp \
-  "/root/rosetta-node" \
-  "${rootdatadir}/.digibyte" \
-  "${rootdatadir}/utxodb" \
-  "/tmp/npm_install"
+# Install Node.js 20 LTS
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy and install rosetta implementation
-COPY package.json package-lock.json /tmp/npm_install/
-RUN cd /tmp/npm_install && \
-  npm set progress=false && \
-  npm config set depth 0 && \
-  npm install
-RUN cp -a /tmp/npm_install/node_modules "/root/rosetta-node/"
+WORKDIR /app
 
-# Copy the source to rosetta node directory
-COPY package*.json "/root/rosetta-node/"
-COPY config "/root/rosetta-node/config"
-COPY index.js "/root/rosetta-node/index.js"
-COPY src "/root/rosetta-node/src"
-COPY test "/root/rosetta-node/test"
+# Copy package files for dependency installation (better layer caching)
+COPY package.json package-lock.json ./
 
-# General args
+# Install dependencies
+RUN npm ci --only=production \
+  && npm cache clean --force
+
+# ============================================================================
+# Stage 3: Runtime image
+# ============================================================================
+FROM ubuntu:focal
+
+ARG local_timezone=Europe/Berlin
 ARG rpc_username=user
 ARG rpc_password=pass
 ARG offline=0
-ARG regtest_simulate_mining=0
-
-# Set to 1 for running it in testnet mode
 ARG use_testnet=0
-
-# OR set this to 1 to enable Regtest mode.
-# Note: Only one of the above can be set exclusively.
 ARG use_regtest=0
-
-# Do we want any blockchain pruning to take place? Set to 4096 for a 4GB blockchain prune.
-# Alternatively set size=1 to prune with RPC call 'pruneblockchainheight <height>'
+ARG regtest_simulate_mining=0
 ARG prunesize=0
 
-# Create digibyte.conf file
-RUN bash -c 'echo -e "\
-server=1\n\
-prune=${prunesize}\n\
-maxconnections=865\n\
-rpcallowip=127.0.0.1\n\
-daemon=1\n\
-rpcuser=${rpc_username}\n\
-rpcpassword=${rpc_password}\n\
-txindex=0\n\
-# Uncomment below if you need Dandelion disabled for any reason but it is left on by default intentionally\n\
-# dandelion=0\n\
-addresstype=bech32\n\
-testnet=${use_testnet}\n\
-rpcworkqueue=100\n\
-regtest=${use_regtest}\n\
-[regtest]\n\
-rpcbind=127.0.0.1\n\
-listen=1\n" | tee "${rootdatadir}/digibyte.conf"'
+# Install runtime dependencies only
+RUN DEBIAN_FRONTEND="noninteractive" apt-get update \
+  && apt-get install -y --no-install-recommends \
+    tzdata \
+    curl \
+    ca-certificates \
+    libboost-system1.71.0 \
+    libboost-filesystem1.71.0 \
+    libboost-chrono1.71.0 \
+    libboost-thread1.71.0 \
+    libevent-2.1-7 \
+    libdb5.3++ \
+  && ln -fs /usr/share/zoneinfo/${local_timezone} /etc/localtime \
+  && dpkg-reconfigure --frontend noninteractive tzdata \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
-# Set some environment variables
-ENV ROOTDATADIR "$rootdatadir"
-ENV ROSETTADIR "/root/rosetta-node"
-ENV DGB_VERSION "$dgb_version"
-ENV PORT 8080
-ENV HOST 0.0.0.0
-ENV DATA_PATH "${rootdatadir}/utxodb"
-ENV RPC_USER "$rpc_username"
-ENV RPC_PASS "$rpc_password"
-ENV OFFLINE_MODE "$offline"
-ENV RUN_TESTS 1
+# Install Node.js 20 LTS (runtime only)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
-RUN if [ "$use_testnet" = "0" ] && [ "$use_regtest" = "0" ]; \
-    then \
-      echo 'export RPC_PORT="14022"' >> ~/env; \
-      echo 'export DGB_NETWORK="livenet"' >> ~/env; \
-    elif [ "$use_testnet" = "1" ] && [ "$use_regtest" = "0" ]; \
-    then \
-      echo 'export RPC_PORT="14023"' >> ~/env; \
-      echo 'export DGB_NETWORK="testnet"' >> ~/env; \
-    elif [ "$use_testnet" = "0" ] && [ "$use_regtest" = "1" ]; \
-    then \
-      echo 'export RPC_PORT="18443"' >> ~/env; \
-      echo 'export DGB_NETWORK="regtest"' >> ~/env; \
-      echo "export REGTEST_SIMULATE_MINING=\"$regtest_simulate_mining\"" >> ~/env; \
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash rosetta \
+  && mkdir -p /data/.digibyte /data/utxodb \
+  && chown -R rosetta:rosetta /data
+
+# Copy DigiByte binaries from builder stage
+COPY --from=digibyte-builder /usr/local/bin/digibyted /usr/local/bin/
+COPY --from=digibyte-builder /usr/local/bin/digibyte-cli /usr/local/bin/
+
+# Copy Node.js dependencies from builder stage
+COPY --from=node-builder --chown=rosetta:rosetta /app/node_modules /home/rosetta/rosetta-node/node_modules
+
+# Copy application code
+COPY --chown=rosetta:rosetta package*.json /home/rosetta/rosetta-node/
+COPY --chown=rosetta:rosetta config /home/rosetta/rosetta-node/config
+COPY --chown=rosetta:rosetta index.js /home/rosetta/rosetta-node/index.js
+COPY --chown=rosetta:rosetta src /home/rosetta/rosetta-node/src
+COPY --chown=rosetta:rosetta test /home/rosetta/rosetta-node/test
+
+# Create digibyte.conf
+RUN echo "server=1" > /data/.digibyte/digibyte.conf \
+  && echo "prune=${prunesize}" >> /data/.digibyte/digibyte.conf \
+  && echo "maxconnections=865" >> /data/.digibyte/digibyte.conf \
+  && echo "rpcallowip=127.0.0.1" >> /data/.digibyte/digibyte.conf \
+  && echo "daemon=1" >> /data/.digibyte/digibyte.conf \
+  && echo "rpcuser=${rpc_username}" >> /data/.digibyte/digibyte.conf \
+  && echo "rpcpassword=${rpc_password}" >> /data/.digibyte/digibyte.conf \
+  && echo "txindex=0" >> /data/.digibyte/digibyte.conf \
+  && echo "# Uncomment below if you need Dandelion disabled for any reason" >> /data/.digibyte/digibyte.conf \
+  && echo "# dandelion=0" >> /data/.digibyte/digibyte.conf \
+  && echo "addresstype=bech32" >> /data/.digibyte/digibyte.conf \
+  && echo "testnet=${use_testnet}" >> /data/.digibyte/digibyte.conf \
+  && echo "rpcworkqueue=100" >> /data/.digibyte/digibyte.conf \
+  && echo "regtest=${use_regtest}" >> /data/.digibyte/digibyte.conf \
+  && echo "[regtest]" >> /data/.digibyte/digibyte.conf \
+  && echo "rpcbind=127.0.0.1" >> /data/.digibyte/digibyte.conf \
+  && echo "listen=1" >> /data/.digibyte/digibyte.conf \
+  && chown rosetta:rosetta /data/.digibyte/digibyte.conf
+
+# Set environment variables
+ENV ROOTDATADIR="/data"
+ENV ROSETTADIR="/home/rosetta/rosetta-node"
+ENV DGB_VERSION="${dgb_version}"
+ENV PORT="8080"
+ENV HOST="0.0.0.0"
+ENV DATA_PATH="/data/utxodb"
+ENV RPC_USER="${rpc_username}"
+ENV RPC_PASS="${rpc_password}"
+ENV OFFLINE_MODE="${offline}"
+ENV RUN_TESTS="1"
+ENV NODE_ENV="production"
+
+# Set network-specific environment variables
+RUN if [ "$use_testnet" = "0" ] && [ "$use_regtest" = "0" ]; then \
+      echo 'export RPC_PORT="14022"' >> /home/rosetta/env; \
+      echo 'export DGB_NETWORK="livenet"' >> /home/rosetta/env; \
+    elif [ "$use_testnet" = "1" ] && [ "$use_regtest" = "0" ]; then \
+      echo 'export RPC_PORT="14023"' >> /home/rosetta/env; \
+      echo 'export DGB_NETWORK="testnet"' >> /home/rosetta/env; \
+    elif [ "$use_testnet" = "0" ] && [ "$use_regtest" = "1" ]; then \
+      echo 'export RPC_PORT="18443"' >> /home/rosetta/env; \
+      echo 'export DGB_NETWORK="regtest"' >> /home/rosetta/env; \
+      echo "export REGTEST_SIMULATE_MINING=\"$regtest_simulate_mining\"" >> /home/rosetta/env; \
     else \
-      echo 'export RPC_PORT=""' >> ~/env; \
-      echo 'export DGB_NETWORK=""' >> ~/env; \
-    fi
+      echo 'export RPC_PORT=""' >> /home/rosetta/env; \
+      echo 'export DGB_NETWORK=""' >> /home/rosetta/env; \
+    fi \
+  && chown rosetta:rosetta /home/rosetta/env
 
-# Allow Communications:
-#         p2p mainnet   rpc mainnet   p2p testnet   rpc testnet    p2p regtest    rpc regtest
-EXPOSE    12024/tcp     14022/tcp     12026/tcp     14023/tcp      18444/tcp      18443/tcp
+# Expose ports
+# p2p mainnet, rpc mainnet, p2p testnet, rpc testnet, p2p regtest, rpc regtest, Rosetta HTTP
+EXPOSE 12024/tcp 14022/tcp 12026/tcp 14023/tcp 18444/tcp 18443/tcp 8080/tcp
 
-#         Rosetta HTTP Node
-EXPOSE    8080/tcp
+# Copy entrypoint script
+COPY --chown=rosetta:rosetta docker-entrypoint.sh /home/rosetta/docker_entrypoint.sh
+RUN chmod +x /home/rosetta/docker_entrypoint.sh
 
-# Create symlinks shouldn't be needed as they're installed in /usr/local/bin/
-#RUN ln -s /usr/local/bin/digibyted /usr/bin/digibyted
-#RUN ln -s /usr/local/bin/digibyte-cli /usr/bin/digibyte-cli
+# Switch to non-root user
+USER rosetta
+WORKDIR /home/rosetta/rosetta-node
 
-COPY docker-entrypoint.sh "${ROOTDATADIR}/docker_entrypoint.sh"
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/network/list -X POST -H "Content-Type: application/json" -d '{"metadata":{}}' || exit 1
 
-ENTRYPOINT ["./docker_entrypoint.sh"]
+ENTRYPOINT ["/home/rosetta/docker_entrypoint.sh"]
