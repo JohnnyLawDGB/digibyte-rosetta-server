@@ -4,11 +4,13 @@
 
 ### Versions
 
-DigiByte Rosetta Server Version: 1.0.0
+DigiByte Rosetta Server Version: 1.4.1
 
 Coinbase Rosetta Version: 1.4.1
 
 DigiByte Core Version (tested): v8.22.2
+
+Node.js Version (required): 14.x or higher (20.x recommended)
 
 ### About
 
@@ -142,7 +144,7 @@ An example on how to validate a mainnet account balance is shown here: [Validati
 This Rosetta implementation is using the [Rosetta Node SDK](https://github.com/DigiByte-Core/digibyte-rosetta-nodeapi.git).
 
 A UTXO-Indexing Middleware was implemented to enable balance lookups. Historical balance lookups are supported as well.
-By using the `Syncer` class of the Rosetta SDK, the sync has become exceptionally reliable and even reorgs are supported very well. LevelDB (the same database that is being used in Bitcoin and its forks) is used to store the UTXO data. A space efficient encoding was chosen in order to avoid redundancy and to save some disk space (usage: 6.7G, as of 08th September, 2020), as described [here](docs/utxoIndexer.md).
+By using the `Syncer` class of the Rosetta SDK, the sync has become exceptionally reliable and even reorgs are supported very well. LevelDB (the same database that is being used in Bitcoin and its forks) is used to store the UTXO data. A space efficient encoding was chosen in order to avoid redundancy and to save some disk space (current size: ~16GB as of January 2026, growing with blockchain), as described [here](docs/utxoIndexer.md).
 
 - [x] Fast, reliable sync
 - [x] Space efficient, non-redundant implementation
@@ -151,11 +153,27 @@ By using the `Syncer` class of the Rosetta SDK, the sync has become exceptionall
 
 Note, that the addition of an UTXO database is heavily discussed in the official Bitcoin Mailgroup. As soon as this feature is added, many altcoins will probably apply the changes too, and the above UTXO middleware will most likely become obsolete.
 
-### ToDos
+### Project Status & Roadmap
+
+#### Completed ✅
 
 - [x] Implement Construction API for Offline and Online Environments
 - [x] Test the node using coinbase's [rosetta-cli](https://github.com/coinbase/rosetta-cli.git) ([Results](docs/LivenetValidationResults.md))
 - [x] Run the mainnet node and wait for full sync
 - [x] Test some utxo balance checks ([Results](docs/Validation.md))
+- [x] Security: Update dependencies, resolve critical vulnerabilities (January 2026)
+- [x] Code quality improvements and linting (January 2026)
+
+#### In Progress 🚧
+
 - [ ] Update to the Coinbase Rosetta Specification version 1.4.12
+- [ ] Docker optimization (Node.js 20, multi-stage builds)
 - [ ] Setup Continuous Integration
+
+### Additional Documentation
+
+- [Project Structure](docs/PROJECT_STRUCTURE.md) - Architecture overview
+- [Rosetta Compliance Checklist](docs/ROSETTA_COMPLIANCE_CHECKLIST.md) - API endpoint compliance
+- [Code Quality Analysis](docs/CODE_QUALITY.md) - Linting and code standards
+- [Dependency Updates](docs/DEPENDENCY_UPDATES.md) - Security and upgrade strategy
+- [Local Setup Guide](docs/LOCAL_SETUP.md) - Development environment setup

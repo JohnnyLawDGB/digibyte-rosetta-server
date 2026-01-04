@@ -1,13 +1,19 @@
-## How to validate Account Balance Retrieval?
-[cryptoID](https://chainz.cryptoid.info/) offers a great service when it comes to investigating history balances for different coins.
+## How to Validate Account Balance Retrieval
 
-### Validate an address with many transactions
-Consider this public address DCzmzkMBqEz2tLn47W9YuNAV9cFzuWCydW.
-As of 05. September, 2020 this address contains 399195 transactions. Fairly a lot.
+[CryptoID](https://chainz.cryptoid.info/) offers a great service when it comes to investigating history balances for different coins.
 
-The following `curl` command may take several seconds
+### Validate an Address with Many Transactions
+
+Consider this public address: `DCzmzkMBqEz2tLn47W9YuNAV9cFzuWCydW`
+
+This address contains 399k+ transactions (as of September 2020, likely more now). This is an excellent test case for the UTXO indexer.
+
+**Note:** The following `curl` command may take several seconds to complete due to the large number of transactions:
+
 ```bash
-curl -X POST -H 'Content-Type: application/json' -d '{ "network_identifier": { "blockchain": "dgb", "network": "mainnet" }, "account_identifier": { "address": "DCzmzkMBqEz2tLn47W9YuNAV9cFzuWCydW" }}' http://127.0.0.1:8080/account/balance
+curl -X POST http://127.0.0.1:8080/account/balance \
+  -H 'Content-Type: application/json' \
+  -d '{"network_identifier":{"blockchain":"DigiByte","network":"livenet"},"account_identifier":{"address":"DCzmzkMBqEz2tLn47W9YuNAV9cFzuWCydW"}}'
 ```
 
 and yields this output:

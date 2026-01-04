@@ -1,6 +1,10 @@
-# Bugs
+# Known Issues and Bugs
 
-## Validation issues when using Rosetta-CLI
+> **Note:** This document was last updated in September 2020. Some issues may have been resolved in recent updates. Please verify current status before filing duplicate reports.
+
+## Historical: Validation Issues when using Rosetta-CLI (2020)
+
+**Status:** Needs re-verification after recent updates
 
 Rosetta CLI denies to validate this block:
 ```json
