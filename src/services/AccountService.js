@@ -84,10 +84,103 @@ const balance = async (params) => {
       ),
     ];
 
+    // Optional: Filter by currencies if specified (Rosetta v1.4.10)
+    let filteredBalances = balances;
+    if (accountBalanceRequest.currencies && Array.isArray(accountBalanceRequest.currencies)) {
+      const requestedSymbols = accountBalanceRequest.currencies.map((c) => c.symbol);
+      filteredBalances = balances.filter((balanceItem) =>
+        requestedSymbols.includes(balanceItem.currency.symbol),
+      );
+    }
+
     // Return the account balance
     return new Types.AccountBalanceResponse(
       blockIdentifier,
-      balances,
+      filteredBalances,
+    );
+  } catch (e) {
+    return Errors.UNABLE_TO_RETRIEVE_BALANCE.addDetails({
+      message: e.message,
+    });
+  }
+};
+
+/**
+* Get an Account's Unspent Coins
+* Get an array of all unspent coins for an Account Identifier and the Block Identifier at which the coins were retrieved. Coins are unspent transaction outputs (UTXOs). If the Coins are being fetched for a specific block, the balance lookup will be performed at that block height. Otherwise, the current balance will be returned. Optionally, an array of Currencies can be provided to filter the response for a specific set of currencies.
+*
+* accountCoinsRequest AccountCoinsRequest
+* returns AccountCoinsResponse
+* */
+const coins = async (params) => {
+  const { accountCoinsRequest } = params;
+
+  // Get the requested address
+  const { address } = accountCoinsRequest.account_identifier;
+
+  // Either block index or block hash
+  let atBlock = null;
+
+  // Prepare the block identifier for the response
+  const blockIdentifier = new Types.BlockIdentifier();
+
+  if (accountCoinsRequest.block_identifier) {
+    if (accountCoinsRequest.block_identifier.hash) {
+      atBlock = accountCoinsRequest.block_identifier.hash;
+      blockIdentifier.hash = accountCoinsRequest.block_identifier.hash;
+    }
+
+    // Prefer block index to block hash
+    if (accountCoinsRequest.block_identifier.index) {
+      atBlock = accountCoinsRequest.block_identifier.index;
+      blockIdentifier.index = accountCoinsRequest.block_identifier.index;
+    }
+  }
+
+  try {
+    // Get the Account Coins from the UTXO Indexer
+    const accountData = await DigiByteIndexer.getAccountCoins(address, atBlock);
+
+    if (!accountData) {
+      throw new Error('Unable to retrieve account coins');
+    }
+
+    const { coins: utxoCoins } = accountData;
+
+    // BlockSymbol
+    blockIdentifier.index = accountData.blockSymbol;
+    if (accountData.blockHash) blockIdentifier.hash = accountData.blockHash;
+
+    // If the hash was not yet set, get the block hash using rpc.
+    if (!blockIdentifier.hash) {
+      console.log('Retrieving the block hash for symbol', accountData);
+      blockIdentifier.hash = await rpc.getblockhash({ height: accountData.blockSymbol });
+    }
+
+    // Convert UTXO data to Rosetta Coin format
+    const coins = utxoCoins.map((coin) => {
+      const coinIdentifier = new Types.CoinIdentifier(`${coin.txid}:${coin.vout}`);
+      const amount = new Types.Amount(
+        coin.sats.toFixed(0),
+        config.serverConfig.currency,
+      );
+
+      return new Types.Coin(coinIdentifier, amount);
+    });
+
+    // Optional: Filter by currencies if specified
+    let filteredCoins = coins;
+    if (accountCoinsRequest.currencies && Array.isArray(accountCoinsRequest.currencies)) {
+      const requestedSymbols = accountCoinsRequest.currencies.map((c) => c.symbol);
+      filteredCoins = coins.filter((coin) =>
+        requestedSymbols.includes(coin.amount.currency.symbol),
+      );
+    }
+
+    // Return the account coins
+    return new Types.AccountCoinsResponse(
+      blockIdentifier,
+      filteredCoins,
     );
   } catch (e) {
     return Errors.UNABLE_TO_RETRIEVE_BALANCE.addDetails({
@@ -99,4 +192,6 @@ const balance = async (params) => {
 module.exports = {
   /* /account/balance */
   balance,
+  /* /account/coins */
+  coins,
 };

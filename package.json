@@ -1,7 +1,7 @@
 {
   "name": "digibyte-rosetta-server",
-  "version": "1.4.1",
-  "description": "Rosetta Node Implementation using Rosetta SDK",
+  "version": "1.4.12",
+  "description": "Rosetta API v1.4.12 Implementation for DigiByte",
   "main": "index.js",
   "scripts": {
     "test-api": "cd test && docker-compose build && docker-compose up",

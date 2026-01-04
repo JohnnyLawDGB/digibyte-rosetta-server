@@ -1299,6 +1299,89 @@ class Indexer {
     }
   }
 
+  async getAccountCoins(address, atBlock = null) {
+    try {
+      let blockSymbol;
+      let blockHash;
+
+      if (typeof atBlock === 'number') {
+        // lookup block hash
+        if (atBlock > this.lastBlockSymbol) {
+          throw new Error(
+            `Block height ${atBlock} is not available.`
+            + ` Node synced to ${this.lastBlockSymbol}.`,
+          );
+        }
+
+        blockSymbol = atBlock;
+        blockHash = await this.getBlockHash(blockSymbol);
+
+        if (!blockHash) {
+          throw new Error(`No block hash found for height ${blockSymbol}`);
+        }
+      } else if (typeof atBlock === 'string') {
+        // lookup block symbol
+        blockHash = atBlock;
+        blockSymbol = await this.getBlockSymbol(blockHash);
+
+        if (blockSymbol === null || blockSymbol === undefined) {
+          throw new Error(`No block found for hash ${atBlock}`);
+        }
+      }
+
+      // If no block was specified, use the most recent one
+      if (blockSymbol === null || blockSymbol === undefined) {
+        blockSymbol = this.lastBlockSymbol;
+        blockHash = this.bestBlockHash;
+      }
+
+      const addressSymbol = await this.getAddressSymbolByAddress(serializeAddress(address));
+      const utxos = await this.db['address-utxos'].get(encodeSymbol(addressSymbol.value));
+      const utxoList = AddressValueSchema.decode(utxos);
+      const coins = [];
+
+      for (let i = 0; i < utxoList.txSymbol.length; ++i) {
+        const symbol = utxoList.txSymbol[i];
+        const vout = utxoList.vout[i];
+
+        const utxo = await this.utxoExistsBySymbol(symbol, vout);
+        if (!utxo) {
+          throw new Error(`Could not find utxo ${symbol}:${vout}`);
+        }
+
+        const decodedUtxo = UtxoValueSchema.decode(utxo.value);
+
+        // Skip if utxo did not exist at specified block
+        if (decodedUtxo.createdOnBlock > blockSymbol) {
+          continue;
+        }
+
+        // Skip if spent before specified block
+        if (decodedUtxo.spentOnBlock !== null && decodedUtxo.spentOnBlock !== undefined && blockSymbol >= decodedUtxo.spentOnBlock) {
+          continue;
+        }
+
+        // Get the transaction hash for this coin
+        const txHash = await this.getTxHash(symbol);
+
+        coins.push({
+          txid: txHash,
+          vout,
+          sats: decodedUtxo.sats,
+        });
+      }
+
+      return {
+        coins,
+        blockSymbol,
+        blockHash,
+      };
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  }
+
   async initBestBlockHash() {
     try {
       const bestBlockHash = await this._db.get('bestBlockHash');

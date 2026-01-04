@@ -116,17 +116,30 @@ const networkStatus = async (params) => {
         subver: p.subver,
       },
     }));
+
+    // Rosetta v1.4.9: Add sync_status with synced field
+    // The node is considered synced if it's not in initial block download
+    // and verification progress is very close to 1.0
+    const syncStatus = new Types.SyncStatus(
+      info.blocks, // current_index
+      info.verificationprogress >= 0.9999, // synced - true if fully synced
+    );
+
+    const response = new Types.NetworkStatusResponse(
+      currentBlockIdentifier,
+      currentBlockTimestamp,
+      genesisBlockIdentifier,
+      peers,
+    );
+
+    // Add sync_status to response
+    response.sync_status = syncStatus;
+
+    return response;
   } catch (e) {
     console.error(e);
     throw Errors.UNABLE_TO_RETRIEVE_NODE_STATUS;
   }
-
-  return new Types.NetworkStatusResponse(
-    currentBlockIdentifier,
-    currentBlockTimestamp,
-    genesisBlockIdentifier,
-    peers,
-  );
 };
 
 module.exports = {

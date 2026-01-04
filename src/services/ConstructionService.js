@@ -334,7 +334,6 @@ const parseUnsignedTransaction = async (request) => {
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: i }),
       type: OperationTypes.TRANSFER,
-      status: '',
       account: Types.AccountIdentifier.constructFromObject({ address: unsigned.input_addresses[i] }),
       amount: Types.Amount.constructFromObject({ value: -unsigned.input_amounts[i], currency }),
     });
@@ -346,7 +345,6 @@ const parseUnsignedTransaction = async (request) => {
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: y + i }),
       type: OperationTypes.TRANSFER,
-      status: '',
       account: Types.AccountIdentifier.constructFromObject({ address }),
       amount: Types.Amount.constructFromObject({ value: output.value, currency }),
     });
@@ -380,7 +378,6 @@ const parseSignedTransaction = async (request) => {
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: i }),
       type: OperationTypes.TRANSFER,
-      status: '',
       account: Types.AccountIdentifier.constructFromObject({ address }),
       amount: Types.Amount.constructFromObject({ value: -signed.input_amounts[i], currency }),
     });
@@ -392,7 +389,6 @@ const parseSignedTransaction = async (request) => {
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: y + i }),
       type: OperationTypes.TRANSFER,
-      status: '',
       account: Types.AccountIdentifier.constructFromObject({ address }),
       amount: Types.Amount.constructFromObject({ value: output.value, currency }),
     });
