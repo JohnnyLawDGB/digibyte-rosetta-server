@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const serverConfig = require('./serverConfig');
 
 const DEFAULT_LISTENING_HOST = 'localhost';
-const DEFAULT_ROSETTA_VERSION = '1.4.1';
+const DEFAULT_ROSETTA_VERSION = '1.4.12';
 const DEFAULT_RPC_PORT = 14022;
 const DEFAULT_RPC_USER = 'user';
 const DEFAULT_RPC_PASS = 'pass';
@@ -28,7 +28,7 @@ const syncerSecret = process.env.SYNCER_SECRET
   || crypto.randomBytes(128).toString('hex');
 
 const config = {
-  version: '1.0.0',
+  version: '1.4.12',
   rosettaVersion: RosettaSDK.Version || DEFAULT_ROSETTA_VERSION,
   digibyteVersion: process.env.DGB_VERSION || DEFAULT_DGB_VERSION,
   port: process.env.SYNCER_PORT || process.env.PORT || DEFAULT_LISTENING_PORT,
