@@ -1,6 +1,6 @@
 const RosettaSDK = require('rosetta-node-sdk');
-const serverConfig = require('./serverConfig');
 const crypto = require('crypto');
+const serverConfig = require('./serverConfig');
 
 const DEFAULT_LISTENING_HOST = 'localhost';
 const DEFAULT_ROSETTA_VERSION = '1.4.1';
@@ -24,16 +24,16 @@ const DEFAULT_DGB_VERSION = 'v8.22.2';
  * A random secret will be used, unless the environment variable
  * SYNCER_SECRET is set.
  */
-const syncerSecret = process.env.SYNCER_SECRET ||
-  crypto.randomBytes(128).toString('hex');
+const syncerSecret = process.env.SYNCER_SECRET
+  || crypto.randomBytes(128).toString('hex');
 
 const config = {
   version: '1.0.0',
   rosettaVersion: RosettaSDK.Version || DEFAULT_ROSETTA_VERSION,
   digibyteVersion: process.env.DGB_VERSION || DEFAULT_DGB_VERSION,
-  port: process.env.PORT || DEFAULT_LISTENING_PORT,
-  host: process.env.HOST || DEFAULT_LISTENING_HOST,
-  offline: !!parseInt(process.env.OFFLINE_MODE),
+  port: process.env.SYNCER_PORT || process.env.PORT || DEFAULT_LISTENING_PORT,
+  host: process.env.SYNCER_HOST || process.env.HOST || DEFAULT_LISTENING_HOST,
+  offline: !!parseInt(process.env.OFFLINE_MODE, 10),
 
   data: {
     path: process.env.DATA_PATH || DEFAULT_DATA_PATH,

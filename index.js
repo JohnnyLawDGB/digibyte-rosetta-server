@@ -65,7 +65,7 @@ const Server = new RosettaSDK.Server({
 Server.expressServer.app.use((req, res, next) => {
   if (!req || req.method !== 'POST') return next();
 
-  const body = req.body;
+  const { body } = req;
   if (!body || typeof body !== 'object' || Array.isArray(body)) return next();
 
   // Only add the property when the header is present to avoid masking
@@ -183,7 +183,7 @@ const checkConnection = async () => {
   for (;;) {
     try {
       const response = await rpc.getblockcount();
-      if (response == 0) throw new Error('Block height is zero');
+      if (response === 0) throw new Error('Block height is zero');
       break;
     } catch (e) {
       await wait(30000);
@@ -214,13 +214,13 @@ const initOffline = async () => {
 };
 
 if (Config.offline) {
-  console.log("Starting in offline mode...");
+  console.log('Starting in offline mode...');
   initOffline().catch((e) => {
     console.error(`Could not start node in offline mode: ${e.message}`);
     console.error(e);
   });
 } else {
-  console.log("Starting in online mode...");
+  console.log('Starting in online mode...');
   init().catch((e) => {
     console.error(`Could not start node in online mode: ${e.message}`);
     console.error(e);

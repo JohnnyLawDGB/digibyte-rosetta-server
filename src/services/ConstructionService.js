@@ -26,6 +26,7 @@ const { ECPairFactory } = require('ecpair');
 
 const Config = require('../../config');
 const CustomNetworks = require('../CustomNetworks');
+
 const Network = CustomNetworks[Config.network];
 const OperationTypes = Config.serverConfig.operationTypes;
 const { currency } = Config.serverConfig;
@@ -33,6 +34,7 @@ const { currency } = Config.serverConfig;
 const rpc = require('../rpc');
 const Errors = require('../../config/errors');
 const DigiByteIndexer = require('../digibyteIndexer');
+
 const ECPair = ECPairFactory(ecc);
 
 const Types = RosettaSDK.Client;
@@ -55,7 +57,7 @@ const constructionDerive = async (params) => {
   }
 
   try {
-    const p2pkh = bitcoinjs.payments.p2pkh({ pubkey: Buffer.from(public_key.hex_bytes, 'hex'), network: Network })
+    const p2pkh = bitcoinjs.payments.p2pkh({ pubkey: Buffer.from(public_key.hex_bytes, 'hex'), network: Network });
     return new Types.ConstructionDeriveResponse(p2pkh.address);
   } catch (e) {
     console.error(e);
@@ -78,9 +80,9 @@ const constructionPreprocess = async (params) => {
   const requiredAmountForAccount = {};
   const requiredBalances = [];
 
-  for (let operation of operations) {
+  for (const operation of operations) {
     const { address } = operation.account;
-    const amount = parseInt(operation.amount.value);
+    const amount = parseInt(operation.amount.value, 10);
 
     // Skip if receiving address.
     if (amount >= 0) continue;
@@ -94,10 +96,10 @@ const constructionPreprocess = async (params) => {
     requiredAmountForAccount[address].sats += positiveAmount;
   }
 
-  for (let account of Object.keys(requiredAmountForAccount)) {
+  for (const account of Object.keys(requiredAmountForAccount)) {
     requiredBalances.push({
       account,
-      amount: requiredAmountForAccount[account]
+      amount: requiredAmountForAccount[account],
     });
   }
 
@@ -105,7 +107,7 @@ const constructionPreprocess = async (params) => {
     options: {
       required_balances: requiredBalances,
     },
-  })
+  });
 };
 
 /**
@@ -119,13 +121,13 @@ const constructionMetadata = async (params) => {
   const { constructionMetadataRequest } = params;
   const { options } = constructionMetadataRequest;
 
-  if (!options || !Array.isArray(options.required_balances) ||
-    options.required_balances.length === 0) throw Errors.EXPECTED_REQUIRED_ACCOUNTS;
+  if (!options || !Array.isArray(options.required_balances)
+    || options.required_balances.length === 0) throw Errors.EXPECTED_REQUIRED_ACCOUNTS;
 
   const relevantInputs = [];
   const scriptPubKeys = [];
   let change = 0;
-  for (let requiredBalance of options.required_balances) {
+  for (const requiredBalance of options.required_balances) {
     const { account, amount } = requiredBalance;
 
     // Get the utxos accociated with that address.
@@ -137,7 +139,7 @@ const constructionMetadata = async (params) => {
      */
     let missing = -amount.sats;
 
-    for (let output of outputs) {
+    for (const output of outputs) {
       if (missing >= 0) continue;
       missing += output.sats;
 
@@ -149,10 +151,10 @@ const constructionMetadata = async (params) => {
         vout: output.vout,
         address: account,
         satoshis: output.sats,
-        scriptPubKey: output.scriptPubKey
+        scriptPubKey: output.scriptPubKey,
       });
 
-      scriptPubKeys.push(output.scriptPubKey)
+      scriptPubKeys.push(output.scriptPubKey);
     }
 
     // Can not fulfill the request.
@@ -190,48 +192,48 @@ const constructionPayloads = async (params) => {
   const { constructionPayloadsRequest } = params;
   const { operations, metadata } = constructionPayloadsRequest;
 
-  if (!metadata || !Array.isArray(metadata.relevant_inputs) ||
-    metadata.relevant_inputs.length === 0) throw Errors.EXPECTED_RELEVANT_INPUTS;
+  if (!metadata || !Array.isArray(metadata.relevant_inputs)
+    || metadata.relevant_inputs.length === 0) throw Errors.EXPECTED_RELEVANT_INPUTS;
 
   const tx = new bitcoinjs.Transaction();
-  tx.version = 2
+  tx.version = 2;
 
-  for (let operation of operations) {
-    const amount = parseInt(operation.amount.value);
+  for (const operation of operations) {
+    const amount = parseInt(operation.amount.value, 10);
     if (amount < 0) continue;
     const scriptPubKey = bitcoinjs.address.toOutputScript(operation.account.address, Network);
-    tx.addOutput(scriptPubKey, amount)
+    tx.addOutput(scriptPubKey, amount);
   }
 
-  const payloads = []
-  const inputAmounts = []
-  const inputAddresses = []
+  const payloads = [];
+  const inputAmounts = [];
+  const inputAddresses = [];
   for (let i = 0; i < metadata.relevant_inputs.length; i++) {
-    const relevantInput = metadata.relevant_inputs[i]
-    const hash = Buffer.from(relevantInput.txid, 'hex').reverse()
+    const relevantInput = metadata.relevant_inputs[i];
+    const hash = Buffer.from(relevantInput.txid, 'hex').reverse();
     const scriptPubKey = Buffer.from(relevantInput.scriptPubKey, 'hex');
-    tx.addInput(hash, relevantInput.vout, undefined, scriptPubKey)
+    tx.addInput(hash, relevantInput.vout, undefined, scriptPubKey);
     const sighash = tx.hashForSignature(
       i,
       scriptPubKey,
       bitcoinjs.Transaction.SIGHASH_ALL,
     );
-    inputAmounts.push(relevantInput.satoshis)
-    inputAddresses.push(relevantInput.address)
+    inputAmounts.push(relevantInput.satoshis);
+    inputAddresses.push(relevantInput.address);
     payloads.push(Types.SigningPayload.constructFromObject({
       address: relevantInput.address,
       hex_bytes: sighash.toString('hex'),
       signature_type: new Types.SignatureType().ecdsa,
-    }))
+    }));
   }
 
-  const unsignedTx = tx.toHex()
+  const unsignedTx = tx.toHex();
   const rawTx = JSON.stringify({
     transaction: unsignedTx,
     script_pub_keys: metadata.script_pub_keys,
     input_amounts: inputAmounts,
     input_addresses: inputAddresses,
-  })
+  });
   return Types.ConstructionPayloadsResponse.constructFromObject({
     unsigned_transaction: rawTx,
     payloads,
@@ -248,38 +250,38 @@ const constructionPayloads = async (params) => {
 const constructionCombine = async (params) => {
   const { constructionCombineRequest } = params;
   const { unsigned_transaction, signatures } = constructionCombineRequest;
-  const unsigned = JSON.parse(unsigned_transaction)
+  const unsigned = JSON.parse(unsigned_transaction);
   const tx = bitcoinjs.Transaction.fromHex(unsigned.transaction);
-  const inputs = tx.ins
+  const inputs = tx.ins;
   // assert lengths match
   if (signatures.length !== tx.ins.length) {
-    throw new Error('Inputs and signatures length mismatch')
+    throw new Error('Inputs and signatures length mismatch');
   }
   for (let i = 0; i < inputs.length; i++) {
     // get signature
     const signature = bitcoinjs.script.signature.encode(
       Buffer.from(signatures[i].hex_bytes, 'hex'),
       bitcoinjs.Transaction.SIGHASH_ALL,
-    )
+    );
     // get pubkey
-    const pubkey = Buffer.from(signatures[i].public_key.hex_bytes, 'hex')
+    const pubkey = Buffer.from(signatures[i].public_key.hex_bytes, 'hex');
     const keyPair = ECPair.fromPublicKey(pubkey, { network: Network, compressed: false });
-    const p2pkhObj = bitcoinjs.payments.p2pkh({ pubkey: keyPair.publicKey, network: Network })
-    const redeemScript = p2pkhObj.output
+    const p2pkhObj = bitcoinjs.payments.p2pkh({ pubkey: keyPair.publicKey, network: Network });
+    const redeemScript = p2pkhObj.output;
 
     const p2pkh = bitcoinjs.payments.p2pkh({
       output: redeemScript,
       pubkey: keyPair.publicKey,
       signature,
-    })
-    tx.setInputScript(i, p2pkh.input)
+    });
+    tx.setInputScript(i, p2pkh.input);
   }
 
-  const signedTx = tx.toHex()
+  const signedTx = tx.toHex();
   const rawTx = JSON.stringify({
     transaction: signedTx,
     input_amounts: unsigned.input_amounts,
-  })
+  });
   return Types.ConstructionCombineResponse.constructFromObject({
     signed_transaction: rawTx,
   });
@@ -294,10 +296,10 @@ const constructionCombine = async (params) => {
  * */
 const constructionHash = async (params) => {
   const { constructionHashRequest } = params;
-  const { signed_transaction } = constructionHashRequest
-  const signed = JSON.parse(signed_transaction)
+  const { signed_transaction } = constructionHashRequest;
+  const signed = JSON.parse(signed_transaction);
   const tx = bitcoinjs.Transaction.fromHex(signed.transaction);
-  const hash = tx.getHash(true).reverse().toString('hex')
+  const hash = tx.getHash(true).reverse().toString('hex');
   return Types.TransactionIdentifierResponse.constructFromObject({
     transaction_identifier: Types.TransactionIdentifier.constructFromObject({ hash }),
   });
@@ -314,20 +316,20 @@ const constructionParse = async (params) => {
   const { constructionParseRequest } = params;
   const { signed } = constructionParseRequest;
   if (signed) {
-    return parseSignedTransaction(constructionParseRequest)
+    return parseSignedTransaction(constructionParseRequest);
   }
 
-  return parseUnsignedTransaction(constructionParseRequest)
+  return parseUnsignedTransaction(constructionParseRequest);
 };
 
 const parseUnsignedTransaction = async (request) => {
   const { transaction } = request;
-  const unsigned = JSON.parse(transaction)
+  const unsigned = JSON.parse(transaction);
   const tx = bitcoinjs.Transaction.fromHex(unsigned.transaction);
-  const ops = []
-  const inputs = tx.ins
-  const outputs = tx.outs
-  let i
+  const ops = [];
+  const inputs = tx.ins;
+  const outputs = tx.outs;
+  let i;
   for (i = 0; i < inputs.length; i++) {
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: i }),
@@ -335,72 +337,72 @@ const parseUnsignedTransaction = async (request) => {
       status: '',
       account: Types.AccountIdentifier.constructFromObject({ address: unsigned.input_addresses[i] }),
       amount: Types.Amount.constructFromObject({ value: -unsigned.input_amounts[i], currency }),
-    })
-    ops.push(operation)
+    });
+    ops.push(operation);
   }
   for (let y = 0; y < outputs.length; y++) {
-    const output = outputs[y]
-    const address = bitcoinjs.address.fromOutputScript(output.script, Network)
+    const output = outputs[y];
+    const address = bitcoinjs.address.fromOutputScript(output.script, Network);
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: y + i }),
       type: OperationTypes.TRANSFER,
       status: '',
       account: Types.AccountIdentifier.constructFromObject({ address }),
       amount: Types.Amount.constructFromObject({ value: output.value, currency }),
-    })
-    ops.push(operation)
+    });
+    ops.push(operation);
   }
 
   return Types.ConstructionParseResponse.constructFromObject({
     operations: ops,
     signers: [],
   });
-}
+};
 
 const parseSignedTransaction = async (request) => {
   const { transaction } = request;
-  const signed = JSON.parse(transaction)
+  const signed = JSON.parse(transaction);
   const tx = bitcoinjs.Transaction.fromHex(signed.transaction);
-  const inputs = tx.ins
-  const outputs = tx.outs
-  const ops = []
-  const signers = []
-  let i
-  let inputLength = inputs.length
+  const inputs = tx.ins;
+  const outputs = tx.outs;
+  const ops = [];
+  const signers = [];
+  let i;
+  const inputLength = inputs.length;
   for (i = 0; i < inputLength; i++) {
-    const input = inputs[i]
+    const input = inputs[i];
     const p2pkh = bitcoinjs.payments.p2pkh({
       input: input.script,
       network: Network,
-    })
-    const address = p2pkh.address
-    signers.push(address)
+    });
+    const { address } = p2pkh;
+    signers.push(address);
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: i }),
       type: OperationTypes.TRANSFER,
       status: '',
       account: Types.AccountIdentifier.constructFromObject({ address }),
       amount: Types.Amount.constructFromObject({ value: -signed.input_amounts[i], currency }),
-    })
-    ops.push(operation)
+    });
+    ops.push(operation);
   }
   for (let y = 0; y < outputs.length; y++) {
-    const output = outputs[y]
-    const address = bitcoinjs.address.fromOutputScript(output.script, Network)
+    const output = outputs[y];
+    const address = bitcoinjs.address.fromOutputScript(output.script, Network);
     const operation = Types.Operation.constructFromObject({
       operation_identifier: Types.OperationIdentifier.constructFromObject({ index: y + i }),
       type: OperationTypes.TRANSFER,
       status: '',
       account: Types.AccountIdentifier.constructFromObject({ address }),
       amount: Types.Amount.constructFromObject({ value: output.value, currency }),
-    })
-    ops.push(operation)
+    });
+    ops.push(operation);
   }
   return Types.ConstructionParseResponse.constructFromObject({
     operations: ops,
     signers,
   });
-}
+};
 
 /**
  * Submit a Signed Transaction
@@ -411,11 +413,11 @@ const parseSignedTransaction = async (request) => {
  * */
 const constructionSubmit = async (params) => {
   const { constructionSubmitRequest } = params;
-  const { signed_transaction } = constructionSubmitRequest
-  const signed = JSON.parse(signed_transaction)
-  const txHash = await rpc.sendrawtransaction({ hexstring: signed.transaction })
+  const { signed_transaction } = constructionSubmitRequest;
+  const signed = JSON.parse(signed_transaction);
+  const txHash = await rpc.sendrawtransaction({ hexstring: signed.transaction });
   if (!txHash || !!txHash.code) {
-    throw new Error(`RPC Error: ${ txHash.message }`)
+    throw new Error(`RPC Error: ${txHash.message}`);
   }
   return Types.TransactionIdentifierResponse.constructFromObject({
     transaction_identifier: Types.TransactionIdentifier.constructFromObject({ hash: txHash }),

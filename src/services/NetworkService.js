@@ -27,6 +27,8 @@ const Config = require('../../config');
 const rpc = require('../rpc');
 const Errors = require('../../config/errors');
 
+const pruneError = (e) => ({ code: e.code, message: e.message, retriable: !!e.retriable });
+
 /* Data API: Network */
 
 /**
@@ -66,7 +68,7 @@ const networkOptions = async (params) => {
   const allow = new Types.Allow(
     Config.serverConfig.operationStatusesList,
     Config.serverConfig.operationTypesList,
-    Config.serverConfig.errorsList,
+    (Config.serverConfig.errorsList || []).map(pruneError),
     Config.serverConfig.historicalBalanceLookup,
   );
 

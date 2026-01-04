@@ -3,6 +3,7 @@ const EventEmitter = require('events');
 const os = require('os');
 
 const networkIdentifier = require('../config/networkIdentifier');
+
 const cpuCount = os.cpus().length;
 
 class Syncer extends EventEmitter {

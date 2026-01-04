@@ -89,7 +89,6 @@ const balance = async (params) => {
       blockIdentifier,
       balances,
     );
-
   } catch (e) {
     return Errors.UNABLE_TO_RETRIEVE_BALANCE.addDetails({
       message: e.message,

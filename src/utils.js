@@ -34,7 +34,7 @@ const txOperations = async (tx, isMempoolTx = false) => {
   // ToDo: Pending state?
   const status = isMempoolTx ? OperationStatus.SUCCESS.status : OperationStatus.SUCCESS.status;
 
-  for (let input of tx.vin) {
+  for (const input of tx.vin) {
     if (input.coinbase) {
       continue;
     }
@@ -55,7 +55,7 @@ const txOperations = async (tx, isMempoolTx = false) => {
       status,
       account: new Types.AccountIdentifier(data.address),
       amount: Types.Amount.constructFromObject({
-        value: -parseInt(data.sats),
+        value: -parseInt(data.sats, 10),
         currency,
       }),
     }));
@@ -63,7 +63,7 @@ const txOperations = async (tx, isMempoolTx = false) => {
 
   // Outputs:
   //   outputs receive balances (positive amounts)
-  for (let output of tx.vout) {
+  for (const output of tx.vout) {
     if (!output.scriptPubKey || output.scriptPubKey.type == 'nonstandard') return;
 
     if (!Array.isArray(output.scriptPubKey.addresses)
@@ -81,7 +81,7 @@ const txOperations = async (tx, isMempoolTx = false) => {
       status,
       account: new Types.AccountIdentifier(address),
       amount: Types.Amount.constructFromObject({
-        value: parseInt(Math.round(output.value * Constants.SATOSHIS)),
+        value: parseInt(Math.round(output.value * Constants.SATOSHIS), 10),
         currency,
       }),
     }));
