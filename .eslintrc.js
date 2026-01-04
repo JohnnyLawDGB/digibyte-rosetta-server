@@ -3,8 +3,9 @@ module.exports = {
     commonjs: true,
     es6: true,
     node: true,
+    mocha: true,
   },
-  extends: 'eslint:recommended',
+  extends: 'airbnb-base',
   globals: {
     Atomics: 'readonly',
     SharedArrayBuffer: 'readonly',
@@ -14,5 +15,6 @@ module.exports = {
   },
   rules: {
     "no-unused-vars": ['warn'],
+    "no-console": 'off',
   },
 };
