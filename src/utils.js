@@ -64,15 +64,18 @@ const txOperations = async (tx, isMempoolTx = false) => {
   // Outputs:
   //   outputs receive balances (positive amounts)
   for (const output of tx.vout) {
-    if (!output.scriptPubKey || output.scriptPubKey.type == 'nonstandard') return;
+    if (!output.scriptPubKey || output.scriptPubKey.type == 'nonstandard') continue;
 
-    if (!Array.isArray(output.scriptPubKey.addresses)
-        || output.scriptPubKey.addresses.length != 1) {
-      // ToDo: Handle Multisig
-      return;
+    // Support both old format (addresses array) and new format (address string)
+    let address = output.scriptPubKey.address;
+    if (!address && Array.isArray(output.scriptPubKey.addresses) && output.scriptPubKey.addresses.length === 1) {
+      address = output.scriptPubKey.addresses[0];
     }
 
-    const address = output.scriptPubKey.addresses[0];
+    if (!address) {
+      // Skip multisig or other non-standard outputs
+      continue;
+    }
     const nextOperationId = operationId++;
 
     ret.push(Types.Operation.constructFromObject({
